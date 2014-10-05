@@ -1,0 +1,1559 @@
+* Links
+
+[[https://github.com/jceb/vim-orgmode/blob/master/doc/orgguide.txt][Vim-Orgmode]]
+
+[[https://github.com/hsitz/VimOrganizer/blob/master/doc/vimorg.txt][Vim Organizer]]
+
+[[https://github.com/dhruvasagar/vim-dotoo][Vim Do Too]]
+
+[[http://vim.wikia.com/wiki/Folding][Vim Folding Documentation]]
+
+[[http://abo-abo.github.io/worf/README.html][Worf.el Documentation]]
+
+[[https://gitorious.org/evil/community][Evil Homepage]]
+
+[[http://news.gmane.org/gmane.emacs.vim-emulation][Vim-Emulation Mailing List (includes Evil)]]
+
+[[https://news.ycombinator.com/item?id=8085328][Hacker News Blurb about Evil Integration Problems]]
+
+
+* Issues Integrating Other Modes with Evil-Mode
+
+I'm attempting to integrate org-mode with evil-mode.  I'm aware of the existing evil-org-mode, but what I'm attempting is much deeper.  Rather than just adding some evil keybindings to some org functions, I want the basic evil operations to work on org files.  That is, evil-mode operators, commands, and motions are org-aware.
+
+I see that when evil-mode is in the normal state:
+
+- the user presses 'x', which is bound to evil-delete-char
+- evil-delete-char calls evil-delete
+- evil-delete calls Emacs's delete-region to perform the deletion
+
+When my new evil-org-mode (a minor mode) is active, I need evil-delete-char to call org-delete-char to perform the deletion.  Not directly, of course.  The following seems to work.
+
+(defun evil-org-delete-region (beg end)
+  (let ((N (- end beg)))
+    (save-excursion
+      (goto-char beg)
+      (org-delete-char N))))
+
+(evil-define-operator evil-org-delete-char (beg end type register)
+  "Delete next character."
+  :motion evil-forward-char
+  (interactive "<R><x>")
+  (cl-letf (((symbol-function 'delete-region) #'(lambda (beg end) (evil-org-delete-region beg end))))
+    (evil-delete beg end type register)))
+
+(define-key evil-org-mode-map [remap evil-delete-char] #'evil-org-delete-char)
+
+Essentially, I remap evil-delete-char to evil-org-delete-char.  This new function temporarily redefines delete-region to be evil-org-delete-region, which, in turn, calls org-delete-char.  Then the subsequent call to evil-delete will call org-delete-char with no changes to the evil-mode source code.  Great!  But...
+
+(1) This approach gets more complicated for other evil-mode functions.
+
+    * For example, evil-org-delete-backward-char-and-join requires more indirection in order to restore the function-cell value of delete-backward-char, because that's what the org-mode function needs to call.
+
+    * Remapping a remapped binding doesn't chain.  And it appears that remapping a binding in my minor mode doesn't override the remapped binding that evil-mode does.  For example, if I remap delete-backward-char in evil-org-mode, the evil-mode (insert state) binding (evil-delete-backward-char-and-join) still gets called.
+
+(2) This approach isn't composable.  That is, another minor mode could not integrate with evil-mode while evil-org-mode is active.
+
+
+Questions:
+
+(1) Is there a good, clean, composable, way of doing what I'm trying to do?
+
+(2) If not, is there an acceptable change that could be made to evil-mode to support what I'm trying to do?  A change that improves the ability to integrate with evil-mode in general, not just for my purpose?
+
+If the answer to question (1) is 'no', I'm thinking the answer to question (2) might be something along the lines of replacing evil-mode's calls to fundamental Emacs text manipulation commands (like delete-region) with (abnormal) hooks.  Each hook would default to being the command currently being called directly, but could be made buffer local and modified by another mode to support awareness of the buffer's contents.  This would also allow, in theory, multiple modes to hook into the actions.  Although I can't quite picture how this would work cleanly in practice.
+
+
+* Evil-Org-Mode Terminology
+
+The following terms should also apply to Evil-Mode.  But I've never seen them defined, so I'll do it myself.
+
+Command: An interactive function.
+
+Motion: A command that moves the cursor.
+
+Operation: A command that operates on a range of text.  The range of text may be a single character, or specified by a motion, or specified by a text object.  An operation should not be confused with an operator, see below.
+
+Operator: The key binding for an operation.  For example, 'x' is bound to =evil-delete-char=, in which 'x' is the operator, and =evil-delete-char= is the operation.  In math, addition is an operation, while '+' is the operator.
+
+
+* Evil-Org-Mode Key Binding Strategy
+
+Org-Mode provides a large number of commands.  These commands are very aligned with the Emacs way of doing things.  Both in the functionality of the commands themselves, and in their key bindings.  Which is appropriate for Org-Mode, but one of the goals for Evil-Org-Mode is to give the Org-Mode functionality Vim-like (i.e., 'Evil') key bindings.  In this spirit, functions like =org-move-subtree-down= won't be used in Evil-Org-Mode.  Moving a range of text with a single key chord (M-S-<down>) is not Evil.  Even assigning that function to an Evil-like key binding would not make it truly Evil.  The Evil way to move anything is to delete it, then put it in a new location.  For example, the Emacs way to transpose two characters is to use a single command (=transpose-chars=) bound to 'C-t'.  The Evil way is to hit 'xp', deleting the character at the cursor, and pasting it after the cursor.  Another example would be to transpose two lines in Emacs, you'd hit 'C-x C-t' (=transpose-lines=), but in Evil you'd hit 'ddp'.
+
+The big difference is that Evil has motions and text objects that can be operated on by operations.  This allows us to define a new text object, say 'ar' for an entire subtree, then move the subtree down by hitting 'darjp'.
+
+Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to visually mark 'an element'.  And use 'v3ae' to visually mark 3 elements.
+
+
+
+* Consider for Evil-Org Key Bindings
+
+** Commands
+
+*** Replacements for Standard Vim Commands
+
+"p" 'org-yank (C-y)
+"P" 'org-yank -- but insert before point
+"]p" 'org-paste-subtree -- only when the previous cut or copy operation was on a subtree
+"<#>]p" 'org-paste-subtree -- only when the previous cut or copy operation was on a subtree
+
+*** New Evil-Org-Mode Commands
+
+| Doc    | Org-Mode                   | Evil-Org-Mode                           | Emacs                                             |
+| <l>    |                            |                                         |                                                   |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 2.3.1  | <TAB>                      | ]y                                      | (org-cycle)                                       |
+|        | C-u <TAB>                  | [y                                      | (org-cycle '(4)) => (org-global-cycle)            |
+|        | C-u C-u <TAB>              | [Y                                      | (org-cycle '(16)) => (org-set-startup-visibility) |
+|        | C-u C-u C-u <TAB>          | ]Y                                      | (org-cycle '(64)) => (show-all)                   |
+|        | C-c C-r                    | [r                                      | (org-reveal)                                      |
+|        | C-u C-c C-r                | [1r                                     | (org-reveal '(4))                                 |
+|        | C-u C-u C-c C-r            | [2r                                     | (org-reveal '(16))                                |
+|        | C-c C-k                    | [k                                      | (show-branches)                                   |
+|        | C-c <TAB>                  | ]C                                      | (show-children)                                   |
+|        | C-u <#> C-C <TAB>          | ]<#>C                                   | (show-children <#>)                               |
+|        | C-c C-x b                  | [b                                      | (org-tree-to-indirect-buffer)                     |
+|        | C-u <#> C-c C-x b          | [<#>b                                   | (org-tree-to-indirect-buffer <#>)                 |
+|        | C-u C-c C-x b              | [0b                                     | (org-tree-to-indirect-buffer t)                   |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 2.5    | M-<RET>                    | [h                                      | (org-insert-heading)                              |
+|        | C-u M-<RET>                | [1h                                     | (org-insert-heading '(4))                         |
+|        | C-u C-u M-<RET>            | [2h                                     | (org-insert-heading '(16))                        |
+|        | C-<RET>                    | [3h                                     | (org-insert-heading-respect-content)              |
+|        | M-S-<RET>                  | [tih                                    | (org-insert-todo-heading)                         |
+|        | C-S-<RET>                  | [tiH                                    | (org-insert-todo-heading-respect-content)         |
+|        | C-c C-x C-y                | ]p                                      | (org-paste-subtree)                               |
+|        | C-u <#> C-c C-x C-y        | <#>]p                                   | (org-paste-subtree <#>)                           |
+|        | C-u C-y                    | [p                                      | (org-yank '(4))                                   |
+|        | C-u <#> C-y                | [<#>p                                   | (org-yank <#>)                                    |
+|        | C-c C-x c                  |                                         | (org-clone-subtree-with-time-shift)               |
+|        | C-x n w                    | [w                                      | (widen)                                           |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 2.6    | C-c /                      | [S                                      | (org-sparse-tree)                                 |
+|        | M-g n OR M-g M-n           | ]e                                      | (next-error)                                      |
+|        | M-g p OR M-g M-p           | [e                                      | (previous-error)                                  |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 2.7    | <TAB>                      | ]y                                      | (org-cycle)                                       |
+|        | M-<RET>                    | [h                                      | (org-insert-heading)                              |
+|        | M-S-<RET>                  | [tih                                    | (org-insert-todo-heading)                         |
+|        | S-<up>                     | [ [                                     | (org-shift-up)                                    |
+|        | S-<down>                   | ]]                                      | (org-shift-down)                                  |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 2.8    | C-c C-z                    | [n                                      | (org-add-note)                                    |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 2.10   | C-c C-x f                  | [F                                      | (org-footnote-action)                             |
+|        | C-c C-c                    | [C                                      | (org-ctrl-c-ctrl-c)                               |
+|        | C-u C-c C-c                | [C #TODO ???                            | (org-ctrl-c-ctrl-c '(4))                          |
+|        | C-c C-o                    | [o                                      | (org-open-at-point)                               |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 3.1    | C-c C-c                    | [C                                      | (org-ctrl-c-ctrl-c) [(org-table-align)]           |
+|        | <TAB>                      | ]y                                      | (org-cycle) [(org-table-next-field)]              |
+|        | S-<TAB>                    | [y                                      | (org-shifttab) [(org-table-previous-field)]       |
+|        | M-<left>                   | [ml                                     | (org-table-move-column-left)                      |
+|        | M-<right>                  | [mr                                     | (org-table-move-column-right)                     |
+|        | M-S-<left>                 | da\vert                                 | (org-table-delete-column)                         |
+|        | M-S-<right>                | [Tic                                    | (org-table-insert-column)                         |
+|        | M-<up>                     | [mu                                     | (org-table-move-row-up)                           |
+|        | M-<down>                   | [md                                     | (org-table-move-row-down)                         |
+|        | M-S-<up>                   | da-                                     | (org-table-kill-row)                              |
+|        | M-S-<down>                 | [TiR                                    | (org-table-insert-row)                            |
+|        | C-u M-S-<down>             | [Tir                                    | (org-table-insert-row '(4))                       |
+|        | C-c -                      | [TiH                                    | (org-table-insert-hline)                          |
+|        | C-u C-c -                  | [Tih                                    | (org-table-insert-hline '(4))                     |
+|        | C-c <RET>                  | [<RET>                                  | (org-ctrl-c-ret) [(org-table-hline-and-move)]     |
+|        | C-c C-x C-y                | p                                       | (org-table-paste-rectangle)                       |
+|        | C-c C-x C-y                | P                                       | (org-table-paste-rectangle)                       |
+|        | S-<RET>                    | [Tyd                                    | (org-table-copy-down)                             |
+|        | C-c `                      | [Tef                                    | (org-table-edit-field)                            |
+|        | C-u C-c `                  | [Tvf                                    | (org-table-edit-field '(4))                       |
+|        | C-u C-u C-c `              | [Tff                                    | (org-table-edit-field '(16))                      |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 3.5.1  | C-c ?                      | [?                                      | (org-table-field-info)                            |
+|        | C-c }                      | [Toc                                    | (org-table-toggle-coordinate-overlays)            |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 3.5.5  | C-c =                      | [TeFc [edit column Formula]             | (org-table-eval-formula)                          |
+|        | C-u C-c =                  | [TeFf [edit field Formula]              | (org-table-eval-formula '(4))                     |
+|        | C-u C-u C-c =              | [TeFi [edit Formula in-place]           | (org-table-eval-formula '(16))                    |
+|        | C-u <#> C-c =              | [<#>TeFc                                | (org-table-eval-formula <#>)                      |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 3.5.8  | C-c {                      | [TdF                                    | (org-table-toggle-formula-debugger)               |
+|        | C-c '                      | [TeFa [edit all Formulas]               | (org-table-edit-formulas)                         |
+|        | #TODO: formula editor mode |                                         |                                                   |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 3.5.9  | C-c *                      | [Trr [recalculate row]                  | (org-ctrl-c-star) [(org-table-recalculate)]       |
+|        | C-u C-c *                  | [Tra [recalculate all]                  | (org-ctrl-c-star '(4)) [(org-table-recalculate)]  |
+|        | C-u C-u C-c *              | [Tia [iterate all]                      | (org-ctrl-c-star '(16)) [(org-table-iterate)]     |
+|        | n/a                        | [TTra [Recalculate all tables]          | (org-table-recalculate-buffer-tables)             |
+|        | n/a                        | [TTia [iterate all tables]              | (org-table-iterate-buffer-tables)                 |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 3.5.10 | C-#                        | [Trm [rotate marks]                     | (org-table-rotate-recalc-marks)                   |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 4.1    | n/a                        | [Vl [view links]                        | (org-toggle-link-display)                         |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 4.4    | C-c l                      | [Ls                                     | (org-store-link)                                  |
+|        | C-c C-l                    | [Li [link insert]                       | (org-insert-link)                                 |
+|        | C-u C-c C-l                | [Lf [link to file]                      | (org-insert-link '(4))                            |
+|        | C-c C-l                    | [Le [link edit] [alias for '[Li']       | (org-insert-link)                                 |
+|        | C-c C-o                    | [Lo [link open]                         | (org-open-at-point)                               |
+|        | C-u C-c C-o                | [LE [link open with Emacs]              | (org-open-at-point)                               |
+|        | C-u C-u C-c C-o            | [LA [link open with Anything but Emacs] | (org-open-at-point)                               |
+|        | C-c C-x C-v                | [Vi [view images]                       | (org-toggle-inline-images)                        |
+|        | C-c %                      | n/a                                     | (org-mark-ring-push)                              |
+|        | C-c &                      | n/a                                     | (org-mark-ring-goto)                              |
+|        | C-c C-x C-n                | [Ln [link next]                         | (org-next-link)                                   |
+|        | C-c C-x C-p                | [Lp [link previous]                     | (org-previous-link)                               |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 5.1    | C-c C-t                    | [trs [rotate state]                     | (org-todo)                                        |
+|        | C-u C-c C-t                | [tss [select state]                     | (org-todo '(4))                                   |
+|        |                            | [tsd [select done]                      | (org-todo 'done)                                  |
+|        |                            | [tps [previous set]                     | (org-todo 'previousset)                           |
+|        | C-u 0 C-c C-t              | [trn [rotate no note]                   | (org-todo 0)                                      |
+|        | C-u <#> C-c C-t            | [<#>tss                                 | (org-todo <#>)                                    |
+|        | S-<left>                   | [<                                      | (org-shiftleft)                                   |
+|        | S-<right>                  | [>                                      | (org-shiftright)                                  |
+|        | C-c /                      | [S                                      | (org-sparse-tree)                                 |
+|        | C-c a                      | [a                                      | (org-agenda)                                      |
+|        | M-S-<RET>                  | [tih                                    | (org-insert-todo-heading)                         |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 5.2.3  | C-u C-u C-c C-t            | [tns [next set]                         | (org-todo '(16))                                  |
+|        | C-S-<right>                | [tns [next set]                         | (org-todo '(16))                                  |
+|        | C-S-<left>                 | [tps [previous set]                     | (org-todo 'previousset)                           |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 5.2.7  | C-c C-x o                  | g,Pto                                   | (org-toggle-ordered-property)                     |
+|        | C-u C-u C-u C-c C-t        | [trd [rotate disable blocking]          | (org-todo '(64))                                  |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+
+NOTE: the "(org-store-link)" command above is actually a global command that's intended to be used outside of Org-mode.  This may affect the selected key binding.
+
+NOTE: the "(org-insert-link-global)" and "(org-open-at-point-global)" commands are intended to be used outside of Org-mode.  Bindings for these commands should be selected appropriately.
+
+NOTE: the "C-c %" and "C-c &" commands aren't needed because Evil-mode already has this functionality with C-o and C-i.  I may need to add the link-following history to the Evil-mode history, though.
+
+** Operators
+
+*** Replacements for Standard Vim Operators
+
+"d" -- not really a replacement, just make use of new motions, text objects, or apply to visual selection as usual.
+"y" -- ditto
+
+*** New Evil-Org-Mode Operators
+
+| Doc   | Org-Mode          | Evil-Org-Mode                | Emacs                                           |
+| <l>   |                   |                              |                                                 |
+|-------+-------------------+------------------------------+-------------------------------------------------|
+| 2.3.1 | C-c C-x v         | [v                           | (org-copy-visible)                              |
+|-------+-------------------+------------------------------+-------------------------------------------------|
+| 2.5   |                   | [p -- promote                |                                                 |
+|       |                   | [d -- demote                 |                                                 |
+|       |                   | [mu -- move up               |                                                 |
+|       |                   | [md -- move down             |                                                 |
+|       | M-<LEFT>          | [pih OR [pah (text object)   | (org-do-promote)                                |
+|       | M-<RIGHT>         | [dih OR [dah (text object)   | (org-do-demote)                                 |
+|       | M-S-<LEFT>        | [pir OR [par (text object)   | (org-promote-subtree)                           |
+|       | M-S-<RIGHT>       | [dir OR [dar (text object)   | (org-demote-subtree)                            |
+|       | M-S-<UP>          | [muir OR [muar (text object) | (org-move-subtree-up)                           |
+|       | M-S-<DOWN>        | [mdir OR [mdar (text object) | (org-move-subtree-down)                         |
+|       | C-c C-w           | [r -- refile                 | (org-refile)                                    |
+|       | C-c ^             | :sort i (***)                | (org-sort)                                      |
+|       | C-u C-c ^         | :sort   (***)                | (org-sort '(4))                                 |
+|       |                   | [n -- narrow                 |                                                 |
+|       | C-x n s           | [nar                         | (org-narrow-to-subtree)                         |
+|       | C-x n b           | [nab                         | (org-narrow-to-block)                           |
+|       | C-c *             | #TODO                        | (org-toggle-heading)                            |
+|-------+-------------------+------------------------------+-------------------------------------------------|
+| 2.7   | M-<up>            | [mual                        | (org-metaup)                                    |
+|       | M-<down>          | [mual                        | (org-metadown)                                  |
+|       | M-<left>          | [pil                         | (org-metaleft                                   |
+|       | M-<right>         | [dil                         | (org-metaright)                                 |
+|       | M-S-<left>        | [pal                         | (org-shiftmetaleft                              |
+|       | M-S-<right>       | [dal                         | (org-shiftmetaright)                            |
+|       | C-c C-c           | [C                           | (org-ctrl-c-ctrl-c)                             |
+|       | C-c -             | [-                           | (org-ctrl-c-minus)                              |
+|       |                   | [-<#><move>                  | (org-ctrl-c-minus)                              |
+|       | C-u <#> C-c -     | <#>[-                        | (org-ctrl-c-minus <#>)                          |
+|       |                   | <#>[-<#><move>               | (org-ctrl-c-minus <#>)                          |
+|       | C-c *             | [*il                         | (org-ctrl-c-star)                               |
+|       | C-c C-*           | [*al                         | #TODO                                           |
+|       | S-<left>          | [<                           | (org-shiftleft)                                 |
+|       | S-<right>         | [>                           | (org-shiftright)                                |
+|       | C-c ^             | [^ #TODO: or...              | (org-sort)                                      |
+|       | C-c ^             | :sort i (***)                | (org-sort)                                      |
+|       | C-u C-c ^         | :sort   (***)                | (org-sort '(4))                                 |
+|-------+-------------------+------------------------------+-------------------------------------------------|
+| 3.1   | C-C \vert         | [\vert{}a                    | (org-table-create-or-convert-from-region)       |
+|       | C-u C-C \vert     | [\vert{}c                    | (org-table-create-or-convert-from-region '(4))  |
+|       | C-u C-u C-C \vert | [\vert{}t                    | (org-table-create-or-convert-from-region '(16)) |
+|       | C-u <#> C-C \vert | <#>[\vert{}s                 | (org-table-create-or-convert-from-region <#>)   |
+|       | C-c ^             | [^ #TODO: or...              | (org-table-sort-lines)                          |
+|       | C-c ^             | :sort i (***)                | (org-table-sort-lines)                          |
+|       | C-u C-c ^         | :sort   (***)                | (org-table-sort-lines '(4))                     |
+|       | C-c C-x M-w       | y                            | (org-table-copy-region)                         |
+|       | C-c C-x C-w       | d                            | (org-table-cut-region)                          |
+|       | M-<RET>           | ]<RET>                       | (org-table-wrap-region)                         |
+|       | C-u <#> M-<RET>   | <#>]<RET>                    | (org-table-wrap-region <#>)                     |
+|       | C-c +             | [+                           | (org-table-sum)                                 |
+|-------+-------------------+------------------------------+-------------------------------------------------|
+
+*** Unused Org-Mode Commands
+
+| Doc | Org-Mode            | Emacs                  | Reason                                                          |
+| <l> |                     |                        |                                                                 |
+|-----+---------------------+------------------------+-----------------------------------------------------------------|
+| 2.5 | M-h                 | (org-mark-element)     | Explicitly marking 'things' isn't needed...                     |
+|     | C-c @               | (org-mark-subtree)     | Use Visual mode or use a motion or text object with an operator |
+|     | C-c C-x C-w         | (org-cut-subtree)      | Use dir or dar instead                                          |
+|     | C-u <#> C-c C-x C-w | (org-cut-subtree <#>)  | Use <#>dir or <#>dar instead                                    |
+|     | C-c C-x M-w         | (org-copy-subtree)     | Use yir or yar instead                                          |
+|     | C-u <#> C-c C-x M-w | (org-copy-subtree <#>) | Use <#>yir or <#>yar instead                                    |
+|-----+---------------------+------------------------+-----------------------------------------------------------------|
+
+
+** Motions
+
+*** Replacements for Standard Vim Motions
+"^" 'org-beginning-of-line ; smarter behavior on headlines etc.
+"$" 'org-end-of-line ; ditto
+
+*** New Evil-Org-Mode Motions
+
+| Doc | Org-Mode | Evil-Org-Mode | Emacs                              |
+|-----+----------+---------------+------------------------------------|
+| 2.4 | C-c C-n  | [n            | (outline-next-visible-heading)     |
+|     | C-c C-p  | [p            | (outline-previous-visible-heading) |
+|     | C-c C-f  | [f            | (org-forward-same-level)           |
+|     | C-c C-b  | [b            | (org-backward-same-level)          |
+|     | C-c C-u  | [u            | (outline-up-heading)               |
+|     | C-c C-j  | [j            | (org-goto)                         |
+|-----+----------+---------------+------------------------------------|
+|     |          |               |                                    |
+|     |          |               |                                    |
+|-----+----------+---------------+------------------------------------|
+
+
+"gh" 'outline-up-heading
+"gj" 'org-forward-same-level
+"gk" 'org-backward-same-level
+"gl" 'outline-next-visible-heading
+
+*** Miscellaneous
+
+Evil-Mode doesn't use C-a, C-e, C-k, so the following settings of Org-Mode (2.2, footnote 4) don't make sense.
+
+See the variables org-special-ctrl-a/e, org-special-ctrl-k, and org-ctrl-k-protect-subtree to configure special behavior of C-a, C-e, and C-k in headlines.
+
+
+
+** Text Objects
+
+ih inner heading, referring to the current heading excluding the heading level characters (*)
+
+ah a heading, referring to the current heading including everything
+
+ir inner subtree, starting with the current heading
+
+ar a subtree, starting with the current heading
+
+Oh inner outer heading, referring to the parent
+
+Or inner outer heading, including subtree, referring to the parent
+
+OH an outer heading
+
+OT an outer subtree
+
+ie inner element, referring to the current element, excluding trailing blank lines
+
+ae an element, referring to the current element, including trailing blank lines
+
+ik inner block, excluding the block begin and end lines
+
+ak a block, including the block begin and end lines
+
+il inner list item, referring to the current list item, excluding children
+
+al a list item, referring to the current list item, including children
+
+i| inner column, referring to a table column, excluding the right vertical border (i.e., the column's contents)
+
+a| a column, referring to a table column, including the right vertical border (i.e., the entire column)
+
+i- inner row, referring to a table row, excluding the bottom horizontal border (i.e., the row's contents)
+
+a- a row, referring to a table row, including the bottom horizontal border (i.e., the entire row)
+
+
+** Potential Key Binding Reassignments (From Vim)
+*** Folding
+
+]z          move to end of open fold
+zA          open a closed fold or close an open fold recursively
+zC          close folds recursively
+zD          delete folds recursively
+zE          eliminate all folds
+zF          create a fold for N lines
+zM          set 'foldlevel' to zero
+zO          open folds recursively
+zR          set 'foldlevel' to the deepest fold
+zX          re-apply 'foldlevel'
+za          open a closed fold, close an open fold
+zc          close a fold
+zd          delete a fold
+zf{motion}  create a fold for Nmove text
+zi          toggle 'foldenable'
+zj          move to the start of the next fold
+zk          move to the end of the previous fold
+zm          subtract one from 'foldlevel'
+zn          reset 'foldenable'
+zo          open fold
+zr          add one to 'foldlevel'
+zv          open enough folds to view the cursor line
+zx          re-apply 'foldlevel' and do "zv"
+
+
+** Unassigned Vim Key Bindings
+
+*** `
+`<TAB>
+`~
+`!
+`@
+`#
+`$
+`%
+`^
+`&
+`*
+`-
+`_
+`=
+`+
+`\
+`|
+`;
+`:
+`'
+`"
+`,
+`.
+`/
+`?
+
+*** '
+'<TAB>
+'`
+'~
+'!
+'@
+'#
+'$
+'%
+'^
+'&
+'*
+'-
+'_
+'=
+'+
+'\
+'|
+';
+':
+'"
+',
+'.
+'/
+'?
+
+*** @
+@<TAB>
+@`
+@~
+@!
+@#
+@$
+@%
+@^
+@&
+@(
+@)
+@-
+@_
+@[
+@{
+@]
+@}
+@\
+@|
+@;
+@:
+@'
+@,
+@<
+@>
+@/
+@?
+
+*** [
+[<TAB>
+[~
+[!
+[@
+[$
+[%
+[^
+[&
+[)
+[-
+[_
+[=
+[+
+[}
+[\
+[|
+[;
+[:
+["
+[,
+[<
+[.
+[>
+[?
+[0
+[1
+[2
+[3
+[4
+[5
+[6
+[7
+[8
+[9
+[a
+[b
+[e
+[g
+[h
+[j
+[k
+[l
+[n
+[o
+[q
+[r
+[t
+[u
+[v
+[w
+[x
+[y
+[A
+[B
+[C
+[E
+[F
+[G
+[H
+[J
+[K
+[L
+[M
+[N
+[O
+[Q
+[R
+[S
+[T
+[U
+[V
+[W
+[X
+[Y
+[Z
+
+*** ]
+]<TAB>
+]~
+]!
+]@
+]$
+]%
+]^
+]&
+](
+]-
+]_
+]=
+]+
+]{
+]\
+]|
+];
+]:
+]"
+],
+]<
+].
+]>
+]?
+]0
+]1
+]2
+]3
+]4
+]5
+]6
+]7
+]8
+]9
+]a
+]b
+]e
+]g
+]h
+]j
+]k
+]l
+]n
+]o
+]q
+]r
+]t
+]u
+]v
+]w
+]x
+]y
+]A
+]B
+]C
+]E
+]F
+]G
+]H
+]J
+]K
+]L
+]M
+]N
+]O
+]Q
+]R
+]S
+]T
+]U
+]V
+]W
+]X
+]Y
+]Z
+
+*** g
+g<TAB>
+g!
+g%
+g(
+g)
+g-
+g_
+g=
+g+
+g[
+g{
+g}
+g\
+g|
+g;
+g:
+g"
+g,
+g.
+g>
+g/
+g1
+g2
+g3
+g4
+g5
+g6
+g7
+g9
+gb
+gc
+gl
+gy
+gz
+gA
+gB
+gC
+gG
+gK
+gL
+gM
+gO
+gS
+gW
+gX
+gY
+gZ
+
+*** z
+z<TAB>
+z`
+z~
+z!
+z@
+z#
+z$
+z%
+z&
+z*
+z(
+z)
+z_
+z[
+z{
+z]
+z}
+z\
+z|
+z;
+z:
+z'
+z"
+z,
+z<
+z>
+z/
+z?
+zp
+zq
+zu
+zy
+zB
+zI
+zJ
+zK
+zP
+zQ
+zS
+zT
+zU
+zV
+zY
+zZ
+
+*** Z
+Z<TAB>
+Z`
+Z~
+Z!
+Z@
+Z#
+Z$
+Z%
+Z^
+Z&
+Z*
+Z(
+Z)
+Z-
+Z_
+Z=
+Z+
+Z[
+Z{
+Z]
+Z}
+Z\
+Z|
+Z;
+Z:
+Z'
+Z"
+Z,
+Z<
+Z.
+Z>
+Z/
+Z?
+Z0
+Z1
+Z2
+Z3
+Z4
+Z5
+Z6
+Z7
+Z8
+Z9
+Za
+Zb
+Zc
+Zd
+Ze
+Zf
+Zg
+Zh
+Zi
+Zj
+Zk
+Zl
+Zm
+Zn
+Zo
+Zp
+Zq
+Zr
+Zs
+Zt
+Zu
+Zv
+Zw
+Zx
+Zy
+Zz
+ZA
+ZB
+ZC
+ZD
+ZE
+ZF
+ZG
+ZH
+ZI
+ZJ
+ZK
+ZL
+ZM
+ZN
+ZO
+ZP
+ZR
+ZS
+ZT
+ZU
+ZV
+ZW
+ZX
+ZY
+
+*** q
+q<TAB>
+q`
+q~
+q!
+q@
+q#
+q$
+q%
+q^
+q&
+q*
+q(
+q)
+q-
+q_
+q=
+q+
+q[
+q{
+q]
+q}
+q\
+q|
+q;
+q'
+q"
+q,
+q<
+q.
+q>
+
+
+
+
+
+
+Normal Mode:
+
+
+
+"H" 'org-beginning-of-line ; smarter behavior on headlines etc.
+"L" 'org-end-of-line ; smarter behavior on headlines etc.
+"t" 'org-todo ; mark a TODO item as DONE
+",c" 'org-cycle
+",e" 'org-export-dispatch
+",n" 'outline-next-visible-heading
+",p" 'outline-previous-visible-heading
+",t" 'org-set-tags-command
+",u" 'outline-up-heading
+"-" 'org-ctrl-c-minus ; change bullet style
+"<" 'org-metaleft ; out-dent
+">" 'org-metaright ; indent
+
+
+Normal & Insert Mode:
+
+M-l 'org-metaright
+M-h 'org-metaleft
+M-k 'org-metaup
+M-j 'org-metadown
+M-L 'org-shiftmetaright
+M-H 'org-shiftmetaleft
+M-K 'org-shiftmetaup
+M-J 'org-shiftmetadown
+
+--------------------------------------------------------------------------
+
+Default mappings
+----------------
+Here is a short overview of the default mappings. They also can be invoked
+via the 'Org' menu. Most are only usable in command mode.
+
+Show/Hide:~
+
+<TAB> - Cycle Visibility
+
+Editing Structure:~
+
+<C-S-CR> - insert heading above
+<S-CR> - insert heading below
+<C-CR> - insert heading above, after children
+m} - move heading down
+m{ - move heading up
+m]] - move subtree down
+m[[ - move subtree up
+yah - yank heading
+dah - delete heading
+yar - yank subtree
+dar - delete subtree
+p - paste subtree
+>> or >ah - demote heading
+<< or <ah - promote heading
+>ar - demote subtree
+<ar - promote subtree
+
+Hyperlinks:~
+
+gl - goto link
+gyl - yank link
+gil - insert new link
+gn - next link
+go - previous link
+
+TODO Lists:~
+
+<localleader>d - select keyword
+<S-Left> - previous keyword
+<S-Right> - next keyword
+<C-S-Left> - previous keyword set
+<C-S-Right> - next keyword set
+
+TAGS and properties:~
+
+<localleader>t - set tags
+
+Dates:~
+
+<localleader>sa - insert date
+<localleader>si - insert inactive date
+<localleader>pa - insert date by using calendar selection
+<localleader>pi - insert inactive date by using calendar selection
+
+Agenda:~
+
+<localleader>caa - agenda for the week
+<localleader>cat - agenda of all TODOs
+
+Not yet implemented in vim-orgmode~
+
+<localleader>caT - timeline for current buffer
+
+Export:~
+
+<localleader>ep - export as PDF
+<localleader>eh - export as HTML
+<localleader>el - export as LaTeX
+
+Text objects
+------------
+Vim offers a mighty feature called |text-objects|. A text object is bound to
+a certain character sequence that can be used in combination with all kinds
+of editing and selection tasks.
+
+vim-orgmode implements a number of text objects to make editing org files easier:
+
+ih inner heading, referring to the current heading excluding the heading level characters (*)
+
+ah a heading, referring to the current heading including everything
+
+ir inner subtree, starting with the current heading
+
+ar a subtree, starting with the current heading
+
+Oh inner outer heading, referring to the parent
+
+Or inner outer heading, including subtree, referring to the parent
+
+OH an outer heading
+
+OT an outer subtree
+
+Motions can be used like text objects as well. See |orgguide-motion|.
+
+--------------------------------------------------------------------------
+
+* Emacs Org-Mode Key Bindings
+
+key             binding
+---             -------
+
+C-a		org-beginning-of-line
+C-c		Prefix Command
+C-e		org-end-of-line
+TAB		org-cycle
+C-j		org-return-indent
+C-k		org-kill-line
+RET		org-return
+C-y		org-yank
+ESC		Prefix Command
+|		org-force-self-insert
+C-#		org-table-rotate-recalc-marks
+C-'		org-cycle-agenda-files
+C-,		org-cycle-agenda-files
+<C-S-down>	org-shiftcontroldown
+<C-S-left>	org-shiftcontrolleft
+<C-S-return>	org-insert-todo-heading-respect-content
+<C-S-right>	org-shiftcontrolright
+<C-S-up>	org-shiftcontrolup
+<C-return>	org-insert-heading-respect-content
+<C-tab>		org-force-cycle-archived
+<M-S-down>	org-shiftmetadown
+<M-S-left>	org-shiftmetaleft
+<M-S-return>	org-insert-todo-heading
+<M-S-right>	org-shiftmetaright
+<M-S-up>	org-shiftmetaup
+<M-down>	org-metadown
+<M-left>	org-metaleft
+<M-return>	org-meta-return
+<M-right>	org-metaright
+<M-up>		org-metaup
+<S-down>	org-shiftdown
+<S-iso-lefttab>	org-shifttab
+<S-left>	org-shiftleft
+<S-return>	org-table-copy-down
+<S-right>	org-shiftright
+<S-tab>		org-shifttab
+<S-up>		org-shiftup
+<backtab>	org-shifttab
+<remap>		Prefix Command
+<tab>		org-cycle
+
+C-M-i		pcomplete
+M-RET		org-insert-heading
+C-M-t		org-transpose-element
+M-a		org-backward-sentence
+M-e		org-forward-sentence
+M-h		org-mark-element
+M-{		org-backward-element
+M-}		org-forward-element
+ESC <S-down>	org-shiftmetadown
+ESC <S-left>	org-shiftmetaleft
+ESC <S-return>	org-insert-todo-heading
+ESC <S-right>	org-shiftmetaright
+ESC <S-up>	org-shiftmetaup
+ESC <down>	org-metadown
+ESC <left>	org-metaleft
+ESC <return>	org-meta-return
+ESC <right>	org-metaright
+ESC <tab>	pcomplete
+ESC <up>	org-metaup
+
+C-c C-a		org-attach
+C-c C-b		org-backward-heading-same-level
+C-c C-c		org-ctrl-c-ctrl-c
+C-c C-d		org-deadline
+C-c C-e		org-export
+C-c C-f		org-forward-heading-same-level
+C-c C-j		org-goto
+C-c C-k		org-kill-note-or-show-branches
+C-c C-l		org-insert-link
+C-c RET		org-ctrl-c-ret
+C-c C-o		org-open-at-point
+C-c C-q		org-set-tags-command
+C-c C-r		org-reveal
+C-c C-s		org-schedule
+C-c C-t		org-todo
+C-c C-v		Prefix Command
+C-c C-w		org-refile
+C-c C-x		Prefix Command
+C-c C-y		org-evaluate-time-range
+C-c C-z		org-add-note
+C-c ESC		Prefix Command
+C-c C-^		org-up-element
+C-c C-_		org-down-element
+C-c SPC		org-table-blank-field
+C-c !		org-time-stamp-inactive
+C-c #		org-update-statistics-cookies
+C-c $		org-archive-subtree
+C-c %		org-mark-ring-push
+C-c &		org-mark-ring-goto
+C-c '		org-edit-special
+C-c *		org-ctrl-c-star
+C-c +		org-table-sum
+C-c ,		org-priority
+C-c -		org-ctrl-c-minus
+C-c .		org-time-stamp
+C-c /		org-sparse-tree
+C-c :		org-toggle-fixed-width-section
+C-c ;		org-toggle-comment
+C-c <		org-date-from-calendar
+C-c =		org-table-eval-formula
+C-c >		org-goto-calendar
+C-c ?		org-table-field-info
+C-c @		org-mark-subtree
+C-c [		org-agenda-file-to-front
+C-c \		org-match-sparse-tree
+C-c ]		org-remove-file
+C-c ^		org-sort
+C-c `		org-table-edit-field
+C-c {		org-table-toggle-formula-debugger
+C-c |		org-table-create-or-convert-from-region
+C-c }		org-table-toggle-coordinate-overlays
+C-c ~		org-table-create-with-table.el
+C-c C-*		org-list-make-subtree
+C-c <down>	org-shiftdown
+C-c <left>	org-shiftleft
+C-c <right>	org-shiftright
+C-c <up>	org-shiftup
+
+<remap> <delete-backward-char>	org-delete-backward-char
+<remap> <delete-char>		org-delete-char
+<remap> <outline-backward-same-level> org-backward-heading-same-level
+<remap> <outline-demote>	org-demote-subtree
+<remap> <outline-forward-same-level>	org-forward-heading-same-level
+<remap> <outline-insert-heading>	org-ctrl-c-ret
+<remap> <outline-mark-subtree>	org-mark-subtree
+<remap> <outline-promote>	org-promote-subtree
+<remap> <self-insert-command>	org-self-insert-command
+<remap> <show-branches>		org-kill-note-or-show-branches
+<remap> <show-subtree>		org-show-subtree
+
+C-c C-a		show-all
+  (that binding is currently shadowed by another mode)
+C-c C-b		outline-backward-same-level
+  (that binding is currently shadowed by another mode)
+C-c C-c		hide-entry
+  (that binding is currently shadowed by another mode)
+C-c C-d		hide-subtree
+  (that binding is currently shadowed by another mode)
+C-c C-e		show-entry
+  (that binding is currently shadowed by another mode)
+C-c C-f		outline-forward-same-level
+  (that binding is currently shadowed by another mode)
+C-c TAB		show-children
+C-c C-k		show-branches
+  (that binding is currently shadowed by another mode)
+C-c C-l		hide-leaves
+  (that binding is currently shadowed by another mode)
+C-c RET		outline-insert-heading
+  (that binding is currently shadowed by another mode)
+C-c C-n		outline-next-visible-heading
+C-c C-o		hide-other
+  (that binding is currently shadowed by another mode)
+C-c C-p		outline-previous-visible-heading
+C-c C-q		hide-sublevels
+  (that binding is currently shadowed by another mode)
+C-c C-s		show-subtree
+  (that binding is currently shadowed by another mode)
+C-c C-t		hide-body
+  (that binding is currently shadowed by another mode)
+C-c C-u		outline-up-heading
+C-c C-v		outline-move-subtree-down
+  (that binding is currently shadowed by another mode)
+C-c C-^		outline-move-subtree-up
+  (that binding is currently shadowed by another mode)
+C-c @		outline-mark-subtree
+  (that binding is currently shadowed by another mode)
+C-c C-<		outline-promote
+C-c C->		outline-demote
+
+C-M-i		ispell-complete-word
+  (that binding is currently shadowed by another mode)
+
+C-c C-M-l	org-insert-all-links
+
+C-c C-v C-a	org-babel-sha1-hash
+C-c C-v C-b	org-babel-execute-buffer
+C-c C-v C-c	org-babel-check-src-block
+C-c C-v C-d	org-babel-demarcate-block
+C-c C-v C-e	org-babel-execute-maybe
+C-c C-v C-f	org-babel-tangle-file
+C-c C-v TAB	org-babel-view-src-block-info
+C-c C-v C-j	org-babel-insert-header-arg
+C-c C-v C-l	org-babel-load-in-session
+C-c C-v C-n	org-babel-next-src-block
+C-c C-v C-o	org-babel-open-src-block-result
+C-c C-v C-p	org-babel-previous-src-block
+C-c C-v C-r	org-babel-goto-named-result
+C-c C-v C-s	org-babel-execute-subtree
+C-c C-v C-t	org-babel-tangle
+C-c C-v C-u	org-babel-goto-src-block-head
+C-c C-v C-v	org-babel-expand-src-block
+C-c C-v C-x	org-babel-do-key-sequence-in-edit-buffer
+C-c C-v C-z	org-babel-switch-to-session
+C-c C-v ESC	Prefix Command
+C-c C-v I	org-babel-view-src-block-info
+C-c C-v a	org-babel-sha1-hash
+C-c C-v b	org-babel-execute-buffer
+C-c C-v c	org-babel-check-src-block
+C-c C-v d	org-babel-demarcate-block
+C-c C-v e	org-babel-execute-maybe
+C-c C-v f	org-babel-tangle-file
+C-c C-v g	org-babel-goto-named-src-block
+C-c C-v h	org-babel-describe-bindings
+C-c C-v i	org-babel-lob-ingest
+C-c C-v j	org-babel-insert-header-arg
+C-c C-v l	org-babel-load-in-session
+C-c C-v n	org-babel-next-src-block
+C-c C-v o	org-babel-open-src-block-result
+C-c C-v p	org-babel-previous-src-block
+C-c C-v r	org-babel-goto-named-result
+C-c C-v s	org-babel-execute-subtree
+C-c C-v t	org-babel-tangle
+C-c C-v u	org-babel-goto-src-block-head
+C-c C-v v	org-babel-expand-src-block
+C-c C-v x	org-babel-do-key-sequence-in-edit-buffer
+C-c C-v z	org-babel-switch-to-session-with-code
+
+C-c C-x C-a	org-archive-subtree-default
+C-c C-x C-b	org-toggle-checkbox
+C-c C-x C-c	org-columns
+C-c C-x C-d	org-clock-display
+C-c C-x C-f	org-emphasize
+C-c C-x TAB	org-clock-in
+C-c C-x C-j	org-clock-goto
+C-c C-x C-l	org-preview-latex-fragment
+C-c C-x RET	Prefix Command
+C-c C-x C-n	org-next-link
+C-c C-x C-o	org-clock-out
+C-c C-x C-p	org-previous-link
+C-c C-x C-q	org-clock-cancel
+C-c C-x C-r	org-clock-report
+C-c C-x C-s	org-advertized-archive-subtree
+C-c C-x C-t	org-toggle-time-stamp-overlays
+C-c C-x C-u	org-dblock-update
+C-c C-x C-v	org-toggle-inline-images
+C-c C-x C-w	org-cut-special
+C-c C-x C-x	org-clock-in-last
+C-c C-x C-y	org-paste-special
+C-c C-x C-z	org-resolve-clocks
+C-c C-x ESC	Prefix Command
+C-c C-x !	org-reload
+C-c C-x ,	org-timer-pause-or-continue
+C-c C-x -	org-timer-item
+C-c C-x .	org-timer
+C-c C-x 0	org-timer-start
+C-c C-x :	org-timer-cancel-timer
+C-c C-x ;	org-timer-set-timer
+C-c C-x <	org-agenda-set-restriction-lock
+C-c C-x >	org-agenda-remove-restriction-lock
+C-c C-x A	org-archive-to-archive-sibling
+C-c C-x D	org-shiftmetadown
+C-c C-x E	org-inc-effort
+C-c C-x G	org-feed-goto-inbox
+C-c C-x L	org-shiftmetaleft
+C-c C-x M	org-insert-todo-heading
+C-c C-x R	org-shiftmetaright
+C-c C-x U	org-shiftmetaup
+C-c C-x [	org-reftex-citation
+C-c C-x \	org-toggle-pretty-entities
+C-c C-x _	org-timer-stop
+C-c C-x a	org-toggle-archive-tag
+C-c C-x b	org-tree-to-indirect-buffer
+C-c C-x c	org-clone-subtree-with-time-shift
+C-c C-x d	org-insert-drawer
+C-c C-x e	org-set-effort
+C-c C-x f	org-footnote-action
+C-c C-x g	org-feed-update-all
+C-c C-x i	org-insert-columns-dblock
+C-c C-x l	org-metaleft
+C-c C-x m	org-meta-return
+C-c C-x o	org-toggle-ordered-property
+C-c C-x p	org-set-property
+C-c C-x r	org-metaright
+C-c C-x u	org-metaup
+C-c C-x v	org-copy-visible
+C-c C-x <left>	org-shiftcontrolleft
+C-c C-x <right>	org-shiftcontrolright
+
+C-c C-v C-M-h	org-babel-mark-block
+
+C-c C-x C-M-v	org-redisplay-inline-images
+C-c C-x M-w	org-copy-special
+
+C-c C-x RET g	org-mobile-pull
+C-c C-x RET p	org-mobile-push
+
+
+* Emacs Org-Mode Key Bindings -- Sorted by Function
+
+hide-body		C-c C-t
+hide-entry		C-c C-c
+hide-leaves		C-c C-l
+hide-other		C-c C-o
+hide-sublevels		C-c C-q
+hide-subtree		C-c C-d
+ispell-complete-word		C-M-i
+org-add-note		C-c C-z
+org-advertized-archive-subtree		C-c C-x C-s
+org-agenda-file-to-front		C-c [
+org-agenda-remove-restriction-lock		C-c C-x >
+org-agenda-set-restriction-lock		C-c C-x <
+org-archive-subtree		C-c $
+org-archive-subtree-default		C-c C-x C-a
+org-archive-to-archive-sibling		C-c C-x A
+org-attach		C-c C-a
+org-babel-check-src-block		C-c C-v c
+org-babel-check-src-block		C-c C-v C-c
+org-babel-demarcate-block		C-c C-v d
+org-babel-demarcate-block		C-c C-v C-d
+org-babel-describe-bindings		C-c C-v h
+org-babel-do-key-sequence-in-edit-buffer		C-c C-v C-x
+org-babel-do-key-sequence-in-edit-buffer		C-c C-v x
+org-babel-execute-buffer		C-c C-v b
+org-babel-execute-buffer		C-c C-v C-b
+org-babel-execute-maybe		C-c C-v C-e
+org-babel-execute-maybe		C-c C-v e
+org-babel-execute-subtree		C-c C-v C-s
+org-babel-execute-subtree		C-c C-v s
+org-babel-expand-src-block		C-c C-v C-v
+org-babel-expand-src-block		C-c C-v v
+org-babel-goto-named-result		C-c C-v C-r
+org-babel-goto-named-result		C-c C-v r
+org-babel-goto-named-src-block		C-c C-v g
+org-babel-goto-src-block-head		C-c C-v C-u
+org-babel-goto-src-block-head		C-c C-v u
+org-babel-insert-header-arg		C-c C-v C-j
+org-babel-insert-header-arg		C-c C-v j
+org-babel-load-in-session		C-c C-v C-l
+org-babel-load-in-session		C-c C-v l
+org-babel-lob-ingest		C-c C-v i
+org-babel-mark-block		C-c C-v C-M-h
+org-babel-next-src-block		C-c C-v C-n
+org-babel-next-src-block		C-c C-v n
+org-babel-open-src-block-result		C-c C-v C-o
+org-babel-open-src-block-result		C-c C-v o
+org-babel-previous-src-block		C-c C-v C-p
+org-babel-previous-src-block		C-c C-v p
+org-babel-sha1-hash		C-c C-v a
+org-babel-sha1-hash		C-c C-v C-a
+org-babel-switch-to-session		C-c C-v C-z
+org-babel-switch-to-session-with-code		C-c C-v z
+org-babel-tangle		C-c C-v C-t
+org-babel-tangle		C-c C-v t
+org-babel-tangle-file		C-c C-v C-f
+org-babel-tangle-file		C-c C-v f
+org-babel-view-src-block-info		C-c C-v I
+org-babel-view-src-block-info		C-c C-v TAB
+org-backward-element		M-{
+org-backward-heading-same-level		<remap> <outline-backward-same-level>
+org-backward-heading-same-level		C-c C-b
+org-backward-sentence		M-a
+org-beginning-of-line		C-a
+org-clock-cancel		C-c C-x C-q
+org-clock-display		C-c C-x C-d
+org-clock-goto		C-c C-x C-j
+org-clock-in		C-c C-x TAB
+org-clock-in-last		C-c C-x C-x
+org-clock-out		C-c C-x C-o
+org-clock-report		C-c C-x C-r
+org-clone-subtree-with-time-shift		C-c C-x c
+org-columns		C-c C-x C-c
+org-copy-special		C-c C-x M-w
+org-copy-visible		C-c C-x v
+org-ctrl-c-ctrl-c		C-c C-c
+org-ctrl-c-minus		C-c -
+org-ctrl-c-ret		<remap> <outline-insert-heading>
+org-ctrl-c-ret		C-c RET
+org-ctrl-c-star		C-c *
+org-cut-special		C-c C-x C-w
+org-cycle		<tab>
+org-cycle		TAB
+org-cycle-agenda-files		C-'
+org-cycle-agenda-files		C-,
+org-date-from-calendar		C-c <
+org-dblock-update		C-c C-x C-u
+org-deadline		C-c C-d
+org-delete-backward-char		<remap> <delete-backward-char>
+org-delete-char		<remap> <delete-char>
+org-demote-subtree		<remap> <outline-demote>
+org-down-element		C-c C-_
+org-edit-special		C-c '
+org-emphasize		C-c C-x C-f
+org-end-of-line		C-e
+org-evaluate-time-range		C-c C-y
+org-export		C-c C-e
+org-feed-goto-inbox		C-c C-x G
+org-feed-update-all		C-c C-x g
+org-footnote-action		C-c C-x f
+org-force-cycle-archived		<C-tab>
+org-force-self-insert		|
+org-forward-element		M-}
+org-forward-heading-same-level		<remap> <outline-forward-same-level>
+org-forward-heading-same-level		C-c C-f
+org-forward-sentence		M-e
+org-goto		C-c C-j
+org-goto-calendar		C-c >
+org-inc-effort		C-c C-x E
+org-insert-all-links		C-c C-M-l
+org-insert-columns-dblock		C-c C-x i
+org-insert-drawer		C-c C-x d
+org-insert-heading		M-RET
+org-insert-heading-respect-content		<C-return>
+org-insert-link		C-c C-l
+org-insert-todo-heading		<M-S-return>
+org-insert-todo-heading		C-c C-x M
+org-insert-todo-heading		ESC <S-return>
+org-insert-todo-heading-respect-content		<C-S-return>
+org-kill-line		C-k
+org-kill-note-or-show-branches		<remap> <show-branches>
+org-kill-note-or-show-branches		C-c C-k
+org-list-make-subtree		C-c C-*
+org-mark-element		M-h
+org-mark-ring-goto		C-c &
+org-mark-ring-push		C-c %
+org-mark-subtree		<remap> <outline-mark-subtree>
+org-mark-subtree		C-c @
+org-match-sparse-tree		C-c \
+org-meta-return		<M-return>
+org-meta-return		C-c C-x m
+org-meta-return		ESC <return>
+org-metadown		<M-down>
+org-metadown		ESC <down>
+org-metaleft		<M-left>
+org-metaleft		C-c C-x l
+org-metaleft		ESC <left>
+org-metaright		<M-right>
+org-metaright		C-c C-x r
+org-metaright		ESC <right>
+org-metaup		<M-up>
+org-metaup		C-c C-x u
+org-metaup		ESC <up>
+org-mobile-pull		C-c C-x RET g
+org-mobile-push		C-c C-x RET p
+org-next-link		C-c C-x C-n
+org-open-at-point		C-c C-o
+org-paste-special		C-c C-x C-y
+org-preview-latex-fragment		C-c C-x C-l
+org-previous-link		C-c C-x C-p
+org-priority		C-c ,
+org-promote-subtree		<remap> <outline-promote>
+org-redisplay-inline-images		C-c C-x C-M-v
+org-refile		C-c C-w
+org-reftex-citation		C-c C-x [
+org-reload		C-c C-x !
+org-remove-file		C-c ]
+org-resolve-clocks		C-c C-x C-z
+org-return		RET
+org-return-indent		C-j
+org-reveal		C-c C-r
+org-schedule		C-c C-s
+org-self-insert-command		<remap> <self-insert-command>
+org-set-effort		C-c C-x e
+org-set-property		C-c C-x p
+org-set-tags-command		C-c C-q
+org-shiftcontroldown		<C-S-down>
+org-shiftcontrolleft		<C-S-left>
+org-shiftcontrolleft		C-c C-x <left>
+org-shiftcontrolright		<C-S-right>
+org-shiftcontrolright		C-c C-x <right>
+org-shiftcontrolup		<C-S-up>
+org-shiftdown		<S-down>
+org-shiftdown		C-c <down>
+org-shiftleft		<S-left>
+org-shiftleft		C-c <left>
+org-shiftmetadown		<M-S-down>
+org-shiftmetadown		C-c C-x D
+org-shiftmetadown		ESC <S-down>
+org-shiftmetaleft		<M-S-left>
+org-shiftmetaleft		C-c C-x L
+org-shiftmetaleft		ESC <S-left>
+org-shiftmetaright		<M-S-right>
+org-shiftmetaright		C-c C-x R
+org-shiftmetaright		ESC <S-right>
+org-shiftmetaup		<M-S-up>
+org-shiftmetaup		C-c C-x U
+org-shiftmetaup		ESC <S-up>
+org-shiftright		<S-right>
+org-shiftright		C-c <right>
+org-shifttab		<backtab>
+org-shifttab		<S-iso-lefttab>
+org-shifttab		<S-tab>
+org-shiftup		<S-up>
+org-shiftup		C-c <up>
+org-show-subtree		<remap> <show-subtree>
+org-sort		C-c ^
+org-sparse-tree		C-c /
+org-table-blank-field		C-c SPC
+org-table-copy-down		<S-return>
+org-table-create-or-convert-from-region		C-c |
+org-table-create-with-table.el		C-c ~
+org-table-edit-field		C-c `
+org-table-eval-formula		C-c =
+org-table-field-info		C-c ?
+org-table-rotate-recalc-marks		C-#
+org-table-sum		C-c +
+org-table-toggle-coordinate-overlays		C-c }
+org-table-toggle-formula-debugger		C-c {
+org-time-stamp		C-c .
+org-time-stamp-inactive		C-c !
+org-timer		C-c C-x .
+org-timer-cancel-timer		C-c C-x :
+org-timer-item		C-c C-x -
+org-timer-pause-or-continue		C-c C-x ,
+org-timer-set-timer		C-c C-x ;
+org-timer-start		C-c C-x 0
+org-timer-stop		C-c C-x _
+org-todo		C-c C-t
+org-toggle-archive-tag		C-c C-x a
+org-toggle-checkbox		C-c C-x C-b
+org-toggle-comment		C-c ;
+org-toggle-fixed-width-section		C-c :
+org-toggle-inline-images		C-c C-x C-v
+org-toggle-ordered-property		C-c C-x o
+org-toggle-pretty-entities		C-c C-x \
+org-toggle-time-stamp-overlays		C-c C-x C-t
+org-transpose-element		C-M-t
+org-tree-to-indirect-buffer		C-c C-x b
+org-up-element		C-c C-^
+org-update-statistics-cookies		C-c #
+org-yank		C-y
+outline-backward-same-level		C-c C-b
+outline-demote		C-c C->
+outline-forward-same-level		C-c C-f
+outline-insert-heading		C-c RET
+outline-mark-subtree		C-c @
+outline-move-subtree-down		C-c C-v
+outline-move-subtree-up		C-c C-^
+outline-next-visible-heading		C-c C-n
+outline-previous-visible-heading		C-c C-p
+outline-promote		C-c C-<
+outline-up-heading		C-c C-u
+pcomplete		C-M-i
+pcomplete		ESC <tab>
+Prefix Command		<remap>
+Prefix Command		C-c
+Prefix Command		C-c C-v
+Prefix Command		C-c C-v ESC
+Prefix Command		C-c C-x
+Prefix Command		C-c C-x ESC
+Prefix Command		C-c C-x RET
+Prefix Command		C-c ESC
+Prefix Command		ESC
+show-all		C-c C-a
+show-branches		C-c C-k
+show-children		C-c TAB
+show-entry		C-c C-e
+show-subtree		C-c C-s
