@@ -44,20 +44,15 @@
 (require 'evil)
 (require 'org)
 
-(define-minor-mode evil-org-mode
-  "Buffer-local minor mode for integrating Evil Mode and Org Mode"
-  :init-value nil
-  :lighter " EvilOrg"
-  :keymap (make-sparse-keymap) ; defines evil-org-mode-map
-  :group 'evil-org
-  (if evil-org-mode
-      (evil-org-register)
-    (evil-org-unregister)))
+(define-derived-mode
+  evil-org-mode
+  org-mode
+  "EvilOrg"
+  "Org Mode with Evil keybindings
 
-(add-hook 'org-mode-hook 'evil-org-mode) ; only load with org-mode
+The following commands are available:
 
-
-(defun evil-org-register ()
+\\{org-mode-map}"
   (add-hook 'evil-move-beginning-of-line--move-beginning-of-line-functions
             'evil-org-beginning-of-line)
   (add-hook 'evil-beginning-of-line--move-beginning-of-line-functions
@@ -67,15 +62,17 @@
   (add-hook 'evil-delete-backward-char-and-join--delete-backward-char-functions
             'evil-org-delete-backward-char-and-join))
 
-(defun evil-org-unregister ()
-  (remove-hook 'evil-move-beginning-of-line--move-beginning-of-line-functions
-               'evil-org-move-beginning-of-line)
-  (remove-hook 'evil-beginning-of-line--move-beginning-of-line-functions
-               'evil-org-beginning-of-line)
-  (remove-hook 'evil-delete-region--delete-region-functions
-               'evil-org-delete-region)
-  (remove-hook 'evil-delete-backward-char-and-join--delete-backward-char-functions
-               'evil-org-delete-backward-char-and-join))
+
+(defgroup evil-org nil
+  "Org-Mode with Evil Keybindings."
+  :tag "EvilOrg"
+  :group 'outlines
+  :group 'calendar)
+
+(defcustom evil-org-mode-hook nil
+  "Mode hook for Evil-Org-mode, run after the mode was turned on."
+  :group 'evil-org
+  :type 'hook)
 
 
 ;;; Motions
@@ -95,6 +92,14 @@
   (evil-move-end count #'org-forward-paragraph-new #'org-backward-paragraph-new))
 
 (define-key evil-org-mode-map [remap evil-forward-paragraph] #'evil-org-forward-paragraph)
+
+(evil-define-motion evil-org-backward-paragraph (count)
+  "Move to the beginning of the COUNT-th previous paragraph."
+  :jump t
+  :type exclusive
+  (evil-move-beginning (- (or count 1)) #'org-forward-paragraph-new #'org-backward-paragraph-new))
+
+(define-key evil-org-mode-map [remap evil-backward-paragraph] #'evil-org-backward-paragraph)
 
 
 
