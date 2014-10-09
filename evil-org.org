@@ -103,15 +103,26 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Branches (outline)
 - Children (outline)
 - Tree (outline)
-- Subtree (outline)
+  + Subtree
+  + Hierarchy
+  + Outline
 - Heading (outline)
+- Headline (outline)
+- Body (of an entry)
 - Level (outline, list)
 - Drawers
 - TODO
+  + Task
+  + Subtask
 - Promote
 - Demote
 - Insert
+  + New
+- Re-Insert
 - Delete
+- Clear
+- Add
+- Remove
 - Kill
 - Create
 - Destroy
@@ -122,7 +133,11 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Paste
 - Yank (Emacs: same as paste)
 - Clone (multiple copies, with time-shift)
+- Replace
 - Refile
+  + Finalize (aka)
+- Initialize
+- Highlight
 - Sort
   + numerical
   + alphabetical
@@ -140,6 +155,7 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Widen (outline, table field)
 - Clipped (table field)
 - Toggle
+- Switch
 - Sparse Tree
 - Occur
 - Next
@@ -150,17 +166,45 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Right
 - Beginning
 - End
+- First
+- Last
+- Forward
+- Backward
+- Child
+- Parent
+- Sibling
 - Above
 - Below
+- Before
+- After
+- Earlier
+- Later
+- Upper
+- Lower
+- Outer
+- Inner
+- Precede
+- Succeed
+- Follow
+- Start [noun and verb]
+- Finish [noun and verb]
 - Entry
+- Element
 - Hide
 - Show
+- Display
+- Print
+- View
+- Examine
 - Invisible
 - Visible
 - Wrap
 - Blank
+- Empty
+- Prepend
 - Append
-
+- Prefix
+- Suffix
 - Lists
   + Unordered
   + Ordered
@@ -168,22 +212,21 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
   + Checkbox
   + Bullets
   + Item
+  + Itemized
   + Sublist
   + Subitems
   + Plain List Item (as opposed to what???)
   + Plain List
-
 - Style
   + (List) Bullet Style
-
 - Indentation
 - Increase
 - Decrease
 - Region
   + Active Region
   + Rectangle
-- Range
-
+- Range (..)
+  + Anchor
 - Prefix Argument
 - Keyword
 - Export
@@ -191,59 +234,278 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Clock
 - Property
 - State
+  + Status (aka)
   + Change
+  + Checked
+  + Unchecked
+  + Intermediate
 - Column
 - Note
-- Tracking
-- Logbook
+- Track
+  + Tracking
+- Log [verb]
+- Logbook [noun]
 - Store [verb]
 - Time
   + Timestamp
+  + Duration
+  + Date
+  + Calendar
 - Footnote
   + Definition
     - Inline
-  + Reference
   + Numbered
   + Named
   + Label
 - Marker (footnote)
+- Mark [verb & noun]
+- Record [verb, referring to position]
+- Record [noun, referring to a note]
+- Unmark [verb]
+- Unmarked [noun]
+- Reference
+- Specification (table coordinates)
+- Name
 - Action
 - Command
+- Exercise
+- Execute
+  + Run
+  + Call
 - Jump
 - Goto
 - Menu
 - Location
-- Link
 - Parse
 - Window
 - Buffer
 - File
 - Increment
 - Decrement
-
 - Table
-  - Spreadsheet
-  - Calculation
-  - Sum
-  - Aligned
-  - Re-Aligned
-  - Field
-  - Row
-  - Column
-  - Horizontal Line
-  - Width
-  - Empty (for table creation)
-  - Separator
-    + CSV
-    + Comma Separated
-    + Tab
-    + Space
-    + Whitespace
-  - Cookie
-
+  + Spreadsheet
+  + Calculation
+  + Calculate
+  + Recalculate
+  + Sum
+  + Aligned
+  + Re-Aligned
+  + Field
+    - Direct (as in "edit directly in the field")
+  + Row
+  + Column
+  + Horizontal Line
+  + Width
+  + Empty (for table creation)
+  + Separator
+    - CSV
+    - Comma Separated
+    - Tab
+    - Space
+    - Whitespace
+  + Coordinates
+    - Absolute
+    - Relative
+  + Header
+- Cookie
+- Value
 - Split
-
+- Minibuffer
 - Convert (table)
+- Group (table columns, tags)
+- Evaluate
+- Compute
+- Recompute
+- Update
+  + Synchronize
+- Formula (table column, table field, table range)
+  + Expression
+  + Equation
+- Assign
+- Install
+- Generate
+- Debug, Debugger
+- Editor (formula)
+- Search
+  + Match (aka)
+  + Query (aka)
+- Grid
+- Vector
+- Emacs
+- Lisp
+- Emacs-Lisp (elisp)
+  + Form
+  + Expression
+- Result
+- Remote
+- Local
+- Global
+- Manipulate
+  + Edit
+  + Control
+  + Change
+  + Modify
+  + Handle
+- Open
+  + Follow
+  + Visit
+- Close
+- Trigger
+- Apply
+- Reapply
+- Overlay
+- Enter
+- Exit
+- In
+- Out
+- Indent
+- Pretty (prettify)
+- Complete
+  + Completion
+- Symbol
+- Shift
+- Scroll
+- Information
+- Iterate
+- Loop
+- Converge
+- Dependency
+- Rotate
+- Parameter
+- Plot
+- Graph
+- Title
+- Link
+  + Hyperlink
+  + External
+  + Internal
+  + File
+  + Email
+  + Usenet
+  + Article
+  + URL
+- Follow
+- Location
+- Literal
+- Expose
+- Target
+  + Dedicated Target
+- Tag
+  + Label
+- Object
+- Description
+- Describe
+- Push
+- Pop
+- Agenda
+- Cursor
+  + Point
+  + Current Location
+  + Location
+  + Here
+- Select
+- Choose
+- Force
+  + Override
+- Overview
+- Priority
+- Split
+- Tick-off list (checkboxes)
+- Key
+- Done
+  + Undone (still TODO, or some other non-done state)
+  + Not-done
+- Option
+- Workflow
+  + States
+- Sequence
+  + Subsequence
+- Step (forward/backward in a sequence/list, etc.)
+- Set [noun] (of keywords, etc.)
+  + Subset
+  + All
+- Set [verb]
+  + Unset
+  + Clear
+  + Reset
+- Process [verb]
+- Type
+  + Kind
+  + Category
+- Ordered
+- Circumvent
+- Blocking (prevent action)
+- Work
+- Habit
+  + Consistency
+- Schedule [noun and verb], Scheduled
+- Repeat [verb]
+  + Interval
+- Repeater [noun]
+- Minimum
+- Maximum
+- Newer, Newest
+- Older, Oldest
+- Statistics
+- Activate
+- Invoke
+- Accept
+- Abort
+  + Quit
+  + Exit
+  + Cancel
+  + Terminate
+- Reset
+- Associate [verb]
+- Pair (key-value)
+- Planning
+- Plan
+  + Estimate
+- Deadline
+- Allow, Allowed
+- Active
+- Inactive
+- Archive
+- Attribute
+- Dynamic (block)
+- Static
+- Metadata
+- Redo
+- Recreate
+- Skip
+- Capture
+- Effort
+- Estimate [noun and verb]
+- Running (timer)
+- Countdown (timer)
+- Plain (timestamp, list)
+- Event
+- Appointment
+- Diary
+  + Journal
+- Alternate, Alternative
+- Normalize
+- Format [verb] (like normalize)
+- Default (task)
+- Continuous (clocking)
+- Reclock
+- History
+  + Recent
+- Report
+- Resolve
+- Timer
+  + Relative Time (aka)
+- Pause
+- Continue
+  + Resume
+- Offset
+- Attachment
+- Project
+- Template
+- Node
+- Interactive
+  + Prompt
+
 
 
 

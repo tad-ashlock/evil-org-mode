@@ -128,12 +128,32 @@ be joined with the previous line if and only if
   (org-delete-backward-char count)
   t)
 
+(evil-define-operator evil-org-copy-visible (beg end type register yank-handler)
+  "Saves the characters in motion into the kill-ring."
+  :move-point nil
+  :repeat nil
+  (interactive "<R><x><y>")
+  (let ((evil-was-yanked-without-register
+         (and evil-was-yanked-without-register (not register))))
+    (cond
+     ((and (fboundp 'cua--global-mark-active)
+           (fboundp 'cua-copy-region-to-global-mark)
+           (cua--global-mark-active))
+      (cua-copy-region-to-global-mark beg end))
+     ((eq type 'block)
+      (evil-yank-rectangle beg end register yank-handler))
+     ((eq type 'line)
+      (evil-yank-lines beg end register yank-handler))
+     (t
+      (evil-yank-characters beg end register yank-handler)))))
+
 
 
 (evil-define-key 'normal evil-org-mode-map
  "[\t" 'org-cycle
  "[C" 'org-ctrl-c-ctrl-c
- "[\r" 'org-ctrl-c-ret)
+ "[\r" 'org-ctrl-c-ret
+ "[v" 'evil-org-copy-visible)
 
 
 
