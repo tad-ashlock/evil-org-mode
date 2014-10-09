@@ -91,6 +91,162 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 
 ** Commands
 
+*** Concepts / Categories
+
+- Cycling
+- Visibility (of outline)
+  + Overview, Contents, All
+  + Startup Visibility (Initial Visibility)
+  + Context
+- Collapse
+- Expand
+- Branches (outline)
+- Children (outline)
+- Tree (outline)
+- Subtree (outline)
+- Heading (outline)
+- Level (outline, list)
+- Drawers
+- TODO
+- Promote
+- Demote
+- Insert
+- Delete
+- Kill
+- Create
+- Destroy
+- Move
+- Mark
+- Cut
+- Copy
+- Paste
+- Yank (Emacs: same as paste)
+- Clone (multiple copies, with time-shift)
+- Refile
+- Sort
+  + numerical
+  + alphabetical
+    - case sensitive
+    - case insensitive
+  + time
+  + checked status
+  + custom function
+- Block (source code, quotes, time logging)
+  + Begin
+  + End
+- Fold
+- Unfold
+- Narrow (outline, table field)
+- Widen (outline, table field)
+- Clipped (table field)
+- Toggle
+- Sparse Tree
+- Occur
+- Next
+- Previous
+- Up
+- Down
+- Left
+- Right
+- Beginning
+- End
+- Above
+- Below
+- Entry
+- Hide
+- Show
+- Invisible
+- Visible
+- Wrap
+- Blank
+- Append
+
+- Lists
+  + Unordered
+  + Ordered
+  + Description
+  + Checkbox
+  + Bullets
+  + Item
+  + Sublist
+  + Subitems
+  + Plain List Item (as opposed to what???)
+  + Plain List
+
+- Style
+  + (List) Bullet Style
+
+- Indentation
+- Increase
+- Decrease
+- Region
+  + Active Region
+  + Rectangle
+- Range
+
+- Prefix Argument
+- Keyword
+- Export
+- Import
+- Clock
+- Property
+- State
+  + Change
+- Column
+- Note
+- Tracking
+- Logbook
+- Store [verb]
+- Time
+  + Timestamp
+- Footnote
+  + Definition
+    - Inline
+  + Reference
+  + Numbered
+  + Named
+  + Label
+- Marker (footnote)
+- Action
+- Command
+- Jump
+- Goto
+- Menu
+- Location
+- Link
+- Parse
+- Window
+- Buffer
+- File
+- Increment
+- Decrement
+
+- Table
+  - Spreadsheet
+  - Calculation
+  - Sum
+  - Aligned
+  - Re-Aligned
+  - Field
+  - Row
+  - Column
+  - Horizontal Line
+  - Width
+  - Empty (for table creation)
+  - Separator
+    + CSV
+    + Comma Separated
+    + Tab
+    + Space
+    + Whitespace
+  - Cookie
+
+- Split
+
+- Convert (table)
+
+
+
 *** Replacements for Standard Vim Commands
 
 "p" 'org-yank (C-y)
@@ -222,6 +378,73 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 |--------+----------------------------+-----------------------------------------+---------------------------------------------------|
 | 5.2.7  | C-c C-x o                  | g,Pto                                   | (org-toggle-ordered-property)                     |
 |        | C-u C-u C-u C-c C-t        | [trd [rotate disable blocking]          | (org-todo '(64))                                  |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 5.4    | C-c ,                      | [tsp [set priority]                     | (org-priority)                                    |
+|        | S-<up>                     | [tip [increase priority]                | (org-priority-up)                                 |
+|        | S-<down>                   | [tdp [decrease priority]                | (org-priority-down)                               |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 5.6    | C-c C-x C-b                | [ttc [toggle checkbox]                  | (org-toggle-checkbox)                             |
+|        | C-u C-c C-x C-b            | [ttC [toggle checkbox presence]         | (org-toggle-checkbox '(4))                        |
+|        | C-u C-u C-c C-x C-b        | [tIc [intermediate checkbox]            | (org-toggle-checkbox '(16))                       |
+|        | M-S-<RET>                  | [tic [insert checkbox]                  | (org-insert-todo-heading)                         |
+|        | C-c C-x o                  | g,Pto                                   | (org-toggle-ordered-property)                     |
+|        | C-c #                      | [tus [update statistics]                | (org-update-statistics-cookies)                   |
+|        | C-u C-c #                  | [tuS [update statistics, entire file]   | (org-update-statistics-cookies '(4))              |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 6.2    | M-<tab>                    | C-p                                     | (pcomplete)                                       |
+|        | C-c C-q                    | [:s [tag set]                           | (org-set-tags-command)                            |
+|        | C-u C-c C-q                | [:a [tag align]                         | (org-set-tags-command '(4))                       |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 6.4    | C-c /                      | [S                                      | (org-sparse-tree)                                 |
+|        | C-c a                      | [a                                      | (org-agenda)                                      |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 7.1    | M-<tab>                    | C-p                                     | (pcomplete)                                       |
+|        | C-c C-x p                  | g,Ps                                    | (org-set-property)                                |
+|        | C-u M-x org-insert-drawer  | g,Di [drawer insert]                    | (org-insert-drawer '(4))                          |
+|        | C-c C-c                    | [C                                      | (org-ctrl-c-ctrl-c) [(org-property-action)]       |
+|        | S-<right>                  | g,Pn                                    | (org-property-next-allowed-value)                 |
+|        | S-<left>                   | g,Pp                                    | (org-property-previous-allowed-value)             |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 7.5.2  | C-c C-x C-c                | [Vc [view columns]                      | (org-columns)                                     |
+|        | #TODO: column view mode    |                                         |                                                   |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 7.5.3  | C-c C-x i                  | g,ci [columns, insert block]            | (org-insert-columns-dblock)                       |
+|        | C-c C-x C-u                | g,cu [columns, update block]            | (org-dblock-update)                               |
+|        | C-u C-c C-x C-u            | g,cU [columns, update all blocks]       | (org-dblock-update '(4))                          |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 8.2    | C-c .                      | [Did                                    | (org-time-stamp)                                  |
+|        | C-c !                      | [Diid                                   | (org-time-stamp-inactive)                         |
+|        | C-u C-c .                  | [Dit                                    | (org-time-stamp '(4))                             |
+|        | C-u C-c !                  | [Diit                                   | (org-time-stamp-inactive '(4))                    |
+|        | C-c C-c                    | [C                                      | (org-ctrl-c-ctrl-c)                               |
+|        | C-c <                      | [Dfc                                    | (org-date-from-calendar)                          |
+|        | C-c >                      | [Dgc                                    | (org-goto-calendar)                               |
+|        | C-c C-o                    | [o                                      | (org-open-at-point)                               |
+|        | S-<left>                   | [Dpd [previous day]                     | (org-timestamp-down-day)                          |
+|        | S-<right>                  | [Dnd [next day]                         | (org-timestamp-up-day)                            |
+|        | S-<up>                     | [Dpt [previous time]                    | (org-timestamp-up)                                |
+|        | S-<down>                   | [Dnt [next time]                        | (org-timestamp-down)                              |
+|        | C-c C-y                    | [Der                                    | (org-evaluate-time-range)                         |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 8.2.2  | C-c C-x C-t                | [Dto [toggle overlays]                  | (org-toggle-time-stamp-overlays)                  |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 8.3.1  | C-c C-d                    | [DiD                                    | (org-deadline)                                    |
+|        | C-c C-s                    | [Dis                                    | (org-schedule)                                    |
+|        | C-c C-x C-k                | [Ama                                    | (org-mark-entry-for-agenda-action)                |
+|--------+----------------------------+-----------------------------------------+---------------------------------------------------|
+| 8.4.1  | C-c C-x C-i                |                                         | (org-clock-in)                                    |
+|        | C-c C-x C-o                |                                         | (org-clock-out)                                   |
+|        | C-c C-x C-x                |                                         | (org-clock-in-last)                               |
+|        | C-c C-x C-e                |                                         | (org-clock-modify-effort-estimate)                |
+|        | C-c C-y                    | [Der                                    | (org-evaluate-time-range)                         |
+|        | C-S-<up>                   |                                         | (org-clock-timestamps-up)                         |
+|        | C-S-<down>                 |                                         | (org-clock-timestamps-down)                       |
+|        | S-M-<up>                   |                                         | (org-shiftmetaup) [(org-timestamp-up)]            |
+|        | S-M-<down>                 |                                         | (org-shiftmetadown) [(org-timestamp-down)]        |
+|        | C-c C-t                    | [trs [rotate state]                     | (org-todo)                                        |
+|        | C-c C-x C-q                |                                         | (org-clock-cancel)                                |
+|        | C-c C-x C-j                |                                         | (org-clock-goto)                                  |
+|        | C-c C-x C-d                |                                         | (org-clock-display)                               |
 |--------+----------------------------+-----------------------------------------+---------------------------------------------------|
 
 NOTE: the "(org-store-link)" command above is actually a global command that's intended to be used outside of Org-mode.  This may affect the selected key binding.
