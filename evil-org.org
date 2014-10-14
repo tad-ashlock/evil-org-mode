@@ -93,7 +93,7 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 
 *** Concepts / Categories
 
-- Cycling
+- Cycling, Cycle
 - Visibility (of outline)
   + Overview, Contents, All
   + Startup Visibility (Initial Visibility)
@@ -127,6 +127,7 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Create
 - Destroy
 - Move
+  + Drag (aka)
 - Mark
 - Cut
 - Copy
@@ -146,9 +147,11 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
   + time
   + checked status
   + custom function
-- Block (source code, quotes, time logging)
+- Block (source, code, quotes, time logging)
   + Begin
   + End
+  + Code Block
+  + Live Code Block
 - Fold
 - Unfold
 - Narrow (outline, table field)
@@ -158,8 +161,14 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Switch
 - Sparse Tree
 - Occur
+- Filter
+  + Narrow (aka)
+  + Include (aka)
+- Limit
+  + Exclude (aka)
 - Next
 - Previous
+- Current
 - Up
 - Down
 - Left
@@ -193,6 +202,7 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Hide
 - Show
 - Display
+  + Presentation
 - Print
 - View
 - Examine
@@ -219,18 +229,27 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
   + Plain List
 - Style
   + (List) Bullet Style
+  + Theme (aka)
 - Indentation
 - Increase
 - Decrease
 - Region
   + Active Region
   + Rectangle
+  + Demarcate [verb]
 - Range (..)
   + Anchor
+  + Span (aka)
 - Prefix Argument
 - Keyword
 - Export
+  + Write (aka)
+  + Store (aka)
 - Import
+  + Read
+  + Convert
+  + Ingest
+  + Load
 - Clock
 - Property
 - State
@@ -255,8 +274,8 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
   + Definition
     - Inline
   + Numbered
-  + Named
   + Label
+- Named (footnote, source block)
 - Marker (footnote)
 - Mark [verb & noun]
 - Record [verb, referring to position]
@@ -279,6 +298,7 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Parse
 - Window
 - Buffer
+  + Indirect Buffer
 - File
 - Increment
 - Decrement
@@ -311,7 +331,7 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Value
 - Split
 - Minibuffer
-- Convert (table)
+- Convert (table, date)
 - Group (table columns, tags)
 - Evaluate
 - Compute
@@ -381,6 +401,7 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
   + Internal
   + File
   + Email
+    - Mail Address (aka)
   + Usenet
   + Article
   + URL
@@ -397,7 +418,7 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Describe
 - Push
 - Pop
-- Agenda
+- Agenda {a}
 - Cursor
   + Point
   + Current Location
@@ -415,6 +436,9 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Done
   + Undone (still TODO, or some other non-done state)
   + Not-done
+  + Finished
+  + Unfinished
+- Undo
 - Option
 - Workflow
   + States
@@ -432,6 +456,7 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Type
   + Kind
   + Category
+  + Flavor
 - Ordered
 - Circumvent
 - Blocking (prevent action)
@@ -451,14 +476,15 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Invoke
 - Accept
 - Abort
-  + Quit
-  + Exit
+  + Quit (implies leaving associated buffers open)
+  + Exit (implies closing associated buffers)
   + Cancel
   + Terminate
 - Reset
 - Associate [verb]
 - Pair (key-value)
-- Planning
+- Planning (infomation)
+  + "Planning information" is the line containing the SCHEDULED:, the DEADLINE: or the CLOSED: cookies or a combination of them.
 - Plan
   + Estimate
 - Deadline
@@ -469,6 +495,7 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Attribute
 - Dynamic (block)
 - Static
+  + Fixed (aka)
 - Metadata
 - Redo
 - Recreate
@@ -505,8 +532,73 @@ Also, we won't be using the =org-mark-element= function.  Instead, use 'vae' to 
 - Node
 - Interactive
   + Prompt
+- Reveal
+- Feed
+- Inbox
+- Cache
+- Timeline {L}
+- Stuck {#}
+- Extract, Extracted
+  + Tangle, Tangling (extract source code blocks)
+- Dispatcher
+- Front
+- Back
+- Restriction
+  + Restriction Lock
+- Sticky
+- Build
+  + Rebuild
+- Compile (as with an agenda list)
+- Icon
+- Refine
+- Today
+- Comment
+- Characters
+  + Entities
+  + ASCII
+- Preview
+- LaTeX
+- Image
+  + Graphic
+  + Picture
+  + Figure
+- Stack [noun] (the export stack)
+- Automatic
+  + Smart (aka)
+- Keep
+  + Preserve (aka)
+- Beamer
+- PDF
+- Environment
+- HTML
+- MarkDown
+- OpenDocument
+- Org
+- Texinfo
+- Info (document type)
+- Combine
+  - Merge
+- iCalendar
+- ics (file type)
+- Publish
+- Library
+- Check
+  + Verify
+  + Validate
+- Session
+- Hash
+- Binding
+- Key Sequence
+- Edit Buffer
+- Swap
+- Reverse
+- Encrypt
+  + Crypt (aka)
 
 
+**** Questions
+
+- What is the difference between an item, a node, an entry, and an element?
 
 
 *** Replacements for Standard Vim Commands
